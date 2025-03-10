@@ -114,7 +114,7 @@ def decode_token(token: str) -> Optional[dict]:
 async def auth_middleware(request: Request, call_next, open_paths=None):
     if open_paths is None:
         open_paths = [
-            "/healthz",
+            "/health",
             "/docs",
             "/openapi.json",
             "/auth/login",
