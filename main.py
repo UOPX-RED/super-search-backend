@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from models import TextPayload, AnalysisResult
@@ -11,7 +11,15 @@ from dotenv import load_dotenv
 import logging
 import os
 
-from utils.jwt import token_middleware, azure_token_middleware
+from utils.azure_sso import (
+    auth_middleware,
+    init_auth,
+    login,
+    get_user_info_from_token,
+    get_token_from_request,
+    azure_token_middleware,
+    validate_token
+)
 
 load_dotenv()
 
@@ -34,35 +42,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+OPEN_PATHS = [
+    "/",
+    "/healthz",
+    "/docs",
+    "/openapi.json",
+    "/auth/login",
+    "/auth/init",
+    "/redoc"
+]
+
+
 @app.middleware("http")
-async def validate_token(request, call_next):
-    try:
-        ignored_paths = [
-            "/auth/login",
-            "/auth/init",
-            "/auth/login",
-            "/analyze" # ignore for testing rn
-        ]
-
-        if request.url.path in ignored_paths or request.method == "OPTIONS":
-            return await call_next(request)
-        azure_token = request.headers.get("X-Azure-Token")
-        if azure_token:
-            validated = azure_token_middleware(azure_token)
-            if not validated:
-                return JSONResponse(content={"message": "Unauthorized"}, status_code=401)
-            return await call_next(request)
-        token = request.headers.get("Authorization")
-        if not token:
-            return JSONResponse(content={"message": "Unauthorized"}, status_code=401)
-        validated = token_middleware(token)
-        if not validated:
-            return JSONResponse(content={"message": "Unauthorized"}, status_code=401)
-        response = await call_next(request)
-        return response
-    except KeyError:
-        return JSONResponse(content={"message": "Unauthorized"}, status_code=401)
-
+async def sso_middleware(request: Request, call_next):
+    return await auth_middleware(request, call_next, OPEN_PATHS)
 
 @app.post("/analyze", response_model=AnalysisResult)
 async def analyze_text(payload: TextPayload):
@@ -112,23 +105,35 @@ async def get_result_by_request_id(request_id: str):
 
 
 @app.get("/auth/init")
-async def init_auth():
-    TENANT_ID_SSO = os.getenv("TENANT_ID_SSO")
-    CLIENT_ID_SSO = os.getenv("CLIENT_ID_SSO")
-    REDIRECT_URI = os.getenv("REDIRECT_URI")
-    redirectURL = f"https://login.microsoftonline.com/{TENANT_ID_SSO}/oauth2/v2.0/authorize?session=false&failureRedirect=%2Ffailed-login&response_type=code%20id_token&redirect_uri={REDIRECT_URI}&client_id={CLIENT_ID_SSO}&scope=openid%20profile%20email%20offline_access&nonce=abcde&response_mode=form_post"
-    return redirectURL
+async def auth_init():
+    return await init_auth()
 
 
 @app.post("/auth/login")
-async def login(request):
-    print('hello')
-    form = await request.form()
-    body = dict(form)
-    id_token = body.get("id_token")
-    print('check', id_token)
-    frontend_url = os.getenv("FRONTEND_URL")
-    return RedirectResponse(f"{frontend_url}?jwt={id_token}", status_code=302)
+async def auth_login(request: Request):
+    return await login(request)
+
+
+@app.get("/api/me")
+async def get_current_user(request: Request):
+    token = get_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    is_valid = (
+        azure_token_middleware(token) if request.headers.get("X-Azure-Token")
+        else validate_token(token)
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_info = get_user_info_from_token(token)
+    if not user_info:
+        raise HTTPException(status_code=500, detail="Failed to extract")
+
+    return user_info
+
 
 if __name__ == "__main__":
     import uvicorn
