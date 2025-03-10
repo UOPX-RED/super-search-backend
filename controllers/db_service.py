@@ -11,9 +11,9 @@ class DocumentDBService:
         connection_string = os.environ.get('DOCUMENT_DB_CONNECTION_STRING')
 
         # Initialize MongoDB client
-        self.client = pymongo.MongoClient(connection_string)
-        self.db = self.client[os.environ.get('DB_NAME', 'text_analysis')]
-        self.collection = self.db[os.environ.get('COLLECTION_NAME', 'analysis_results')]
+        self.client = pymongo.MongoClient(connection_string, connect=False)
+        self.db = self.client[os.environ.get('MONGO_DB', 'text_analysis')]
+        self.collection = self.db[os.environ.get('MONGODB_COLLECTION', 'analysis_results')]
 
     def save_result(self, result: AnalysisResult) -> str:
         """Save analysis result to DocumentDB and return its ID"""
