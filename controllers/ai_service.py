@@ -74,7 +74,7 @@ class TextAnalyzer:
             keywords_searched=keywords,
             highlighted_sections=[HighlightedSection(**section) for section in
                                   result_data.get("highlighted_sections", [])],
-            has_flags=len(result_data.get("highlighted_sections", [])) > 0,
+            has_flags='true'if len(result_data.get("highlighted_sections", [])) > 0 else 'false',
             metadata=payload.metadata,
             keywords_matched=result_data.get("keywords_matched", [])
         )

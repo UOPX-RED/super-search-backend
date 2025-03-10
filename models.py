@@ -29,7 +29,7 @@ class AnalysisResult(BaseModel):
     original_text: str
     keywords_searched: List[str] = []
     highlighted_sections: List[HighlightedSection] = []
-    has_flags: bool = False
+    has_flags: str = "false"
     metadata: Dict[str, Any] = {}
     created_at: datetime = Field(default_factory=datetime.utcnow)
     keywords_matched: List[str] = []

@@ -37,7 +37,7 @@ class DynamoDBService:
         """Retrieve results that have flags"""
         response = self.table.query(
             IndexName='has_flags-index',
-            KeyConditionExpression=Key('has_flags').eq(False)
+            KeyConditionExpression=Key('has_flags').eq("true")
         )
         items = response.get('Items', [])
         results = [AnalysisResult(**item) for item in items]
