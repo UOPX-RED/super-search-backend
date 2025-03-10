@@ -115,7 +115,7 @@ class TextAnalyzer:
                 json_str = response_text.split("```")[1].strip()
 
             logger.debug(f"JSON string to parse: {json_str[:100]}...")  # Log first 100 chars
-
+            print(json_str)
             result = json.loads(json_str)
             logger.info("Successfully parsed JSON response")
             return result
