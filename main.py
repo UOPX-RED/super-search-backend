@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from models import TextPayload, AnalysisResult
 from controllers.ai_service import TextAnalyzer
-from controllers.db_service import DocumentDBService
+from controllers.db_service import DynamoDBService
 from typing import List, Optional
 from uuid import uuid4
 from dotenv import load_dotenv
@@ -25,7 +25,7 @@ load_dotenv()
 
 app = FastAPI(title="Educational Text Analysis API")
 text_analyzer = TextAnalyzer()
-db_service = DocumentDBService()
+db_service = DynamoDBService()
 
 # Configure logging based on environment setting
 log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -49,7 +49,8 @@ OPEN_PATHS = [
     "/openapi.json",
     "/auth/login",
     "/auth/init",
-    "/redoc"
+    "/redoc",
+    "/analyze"
 ]
 
 
@@ -69,7 +70,7 @@ async def analyze_text(payload: TextPayload):
     result = text_analyzer.analyze_text(payload, request_id)
 
     # Save to database
-    # db_service.save_result(result)
+    db_service.save_result(result)
 
     return result
 

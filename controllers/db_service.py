@@ -3,57 +3,54 @@ import pymongo
 import os
 from models import AnalysisResult
 from typing import List, Optional
+import boto3
+from boto3.dynamodb.conditions import Key
 
 
-class DocumentDBService:
+class DynamoDBService:
     def __init__(self):
-        # Connection string for AWS DocumentDB
-        connection_string = os.environ.get('DOCUMENT_DB_CONNECTION_STRING')
-
-        # Initialize MongoDB client
-        self.client = pymongo.MongoClient(connection_string, connect=False)
-        self.db = self.client[os.environ.get('MONGO_DB', 'text_analysis')]
-        self.collection = self.db[os.environ.get('MONGODB_COLLECTION', 'analysis_results')]
+        self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+        self.table = self.dynamodb.Table('super-search-analysis_results')
 
     def save_result(self, result: AnalysisResult) -> str:
-        """Save analysis result to DocumentDB and return its ID"""
+        """Save analysis result to DynamoDB and return its ID"""
         result_dict = result.model_dump()
-
-        # Handle datetime serialization
-        result_dict['created_at'] = result.created_at
+        result_dict['created_at'] = result.created_at.isoformat()
 
         # Insert document
-        insert_result = self.collection.insert_one(result_dict)
-        return str(insert_result.inserted_id)
+        insert_result = self.table.put_item(
+            Item=result_dict
+        )
+        return result_dict['id']
 
     def get_results_by_source_id(self, source_id: str) -> List[AnalysisResult]:
         """Retrieve analysis results by source ID"""
-        cursor = self.collection.find({"source_id": source_id})
-        results = []
-
-        for doc in cursor:
-            doc['id'] = str(doc.pop('_id'))
-            results.append(AnalysisResult(**doc))
-
+        response = self.table.query(
+            IndexName='source_id-index',  
+            KeyConditionExpression=Key('source_id').eq(source_id)
+        )
+        items = response.get('Items', [])
+        results = [AnalysisResult(**item) for item in items]
         return results
 
     def get_flagged_results(self, limit: int = 100) -> List[AnalysisResult]:
         """Retrieve results that have flags"""
-        cursor = self.collection.find({"has_flags": True}).limit(limit)
-        results = []
-
-        for doc in cursor:
-            doc['id'] = str(doc.pop('_id'))
-            results.append(AnalysisResult(**doc))
-
+        response = self.table.query(
+            IndexName='has_flags-index',
+            KeyConditionExpression=Key('has_flags').eq(False)
+        )
+        items = response.get('Items', [])
+        results = [AnalysisResult(**item) for item in items]
         return results
 
     def get_result_by_request_id(self, request_id: str) -> Optional[AnalysisResult]:
         """Retrieve analysis result by request ID"""
-        doc = self.collection.find_one({"request_id": request_id})
-
-        if not doc:
-            return None
-
-        doc['id'] = str(doc.pop('_id'))
-        return AnalysisResult(**doc)
+        response = self.table.query(
+            IndexName='request_id-index',
+            KeyConditionExpression=Key('request_id').eq(request_id)
+        )
+        items = response.get('Items', [])
+        if items:
+            item = AnalysisResult(**items[0])
+            return item
+        return []

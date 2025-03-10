@@ -9,3 +9,4 @@ pymongo>=4.6.1
 python-dotenv>=1.0.0
 pyjwt
 python-multipart
+boto3
