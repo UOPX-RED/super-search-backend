@@ -90,11 +90,30 @@ class TextAnalyzer:
         2. Explain WHY this section relates to one or more of the concepts (which concept and how it relates)
         3. Assign a confidence score (0.0-1.0) reflecting how strongly this relates to the concept
         
-        Format your response as valid JSON with these fields:
-        - highlighted_sections: array of objects with start_index, end_index, matched_text, reason, concept_matched, and confidence fields
-        - concepts_found: array of the concepts that were identified in the text (not just exact matches)
+        YOU MUST RETURN YOUR RESPONSE AS A SINGLE VALID JSON OBJECT WITH THIS EXACT STRUCTURE:
+        {{
+        "highlighted_sections": [
+            {{
+            "start_index": <number>,
+            "end_index": <number>,
+            "matched_text": <string>,
+            "reason": <string>,
+            "concept_matched": <string>,
+            "confidence": <number>
+            }}
+            
+        ],
+        "concepts_found": [<string>, <string>, ...] 
+        }}
         
-        DO NOT UNDER ANY CIRCUSTANCES return anything other than valid json. If you do, the system will not be able to parse your response.
+        If no concepts are found, return:
+        {{
+        "highlighted_sections": [],
+        "concepts_found": []
+        }}
+        
+        DO NOT include any explanations, comments, or additional text outside of the JSON structure. 
+        YOUR ENTIRE RESPONSE MUST BE PARSEABLE AS JSON.
         
         Text to analyze:
         {text}"""
@@ -106,18 +125,43 @@ class TextAnalyzer:
         logger.info("Parsing LLM response")
         try:
             # For chat models, extract the JSON part from the response
-            json_str = response_text
-            if "```json" in response_text:
+            json_str = response_text.strip()
+            
+          
+            if "```json" in json_str:
                 logger.info("Found JSON code block with ```json marker")
-                json_str = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            elif "```" in json_str:
                 logger.info("Found JSON code block with ``` marker")
-                json_str = response_text.split("```")[1].strip()
+                parts = json_str.split("```")
+                if len(parts) >= 3:  
+                    json_str = parts[1].strip()
+            
+       
+            try:
+                result = json.loads(json_str)
+                
+            except json.JSONDecodeError:
+                
+                
+                if json_str.find('{') != -1 and json_str.rfind('}') != -1:
+                    start_idx = json_str.find('{')
+                    end_idx = json_str.rfind('}') + 1
+                    json_str = json_str[start_idx:end_idx]
+                    result = json.loads(json_str)
+                   
+                else:
+                    raise
+            
 
-            logger.debug(f"JSON string to parse: {json_str[:100]}...")  # Log first 100 chars
+            if "highlighted_sections" not in result:
+                result["highlighted_sections"] = []
+            if "keywords_matched" not in result and "concepts_found" in result:
 
-            result = json.loads(json_str)
-            logger.info("Successfully parsed JSON response")
+                result["keywords_matched"] = result["concepts_found"]
+            elif "keywords_matched" not in result:
+                result["keywords_matched"] = []
+                
             return result
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {str(e)}", exc_info=True)
