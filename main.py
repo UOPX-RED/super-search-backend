@@ -44,7 +44,7 @@ app.add_middleware(
 
 OPEN_PATHS = [
     "/",
-    "/healthz",
+    "/health",
     "/docs",
     "/openapi.json",
     "/auth/login",
@@ -56,6 +56,10 @@ OPEN_PATHS = [
 @app.middleware("http")
 async def sso_middleware(request: Request, call_next):
     return await auth_middleware(request, call_next, OPEN_PATHS)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "We up"}
 
 @app.post("/analyze", response_model=AnalysisResult)
 async def analyze_text(payload: TextPayload):
