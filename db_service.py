@@ -2,18 +2,68 @@
 import pymongo
 import os
 from models import AnalysisResult
+import json
 from typing import List, Optional
+import boto3
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+import os
+from dotenv import load_dotenv
 
+if os.environ.get("ENVIRONMENT") == "LOCAL":
+    load_dotenv('.env-local')
 
 class DocumentDBService:
     def __init__(self):
         # Connection string for AWS DocumentDB
         connection_string = os.environ.get('DOCUMENT_DB_CONNECTION_STRING')
+        if connection_string is None:
+            raise ValueError("Invalid connection_string: received None")
+        print(f"connection_string: {connection_string}")
+
+        # Retrieve the password from AWS Secrets Manager
+        password = self.get_secret()
+
+        if not password:
+            raise ValueError("Failed to retrieve password from AWS Secrets Manager");
+        print(f"connection_string: {connection_string}")
+        connection_string = connection_string.replace('<password>', password)
+        print(f"connection_string: {connection_string}")
 
         # Initialize MongoDB client
         self.client = pymongo.MongoClient(connection_string)
         self.db = self.client[os.environ.get('DB_NAME', 'text_analysis')]
         self.collection = self.db[os.environ.get('COLLECTION_NAME', 'analysis_results')]
+
+    def get_secret(self):
+
+        secret_name = "rds!cluster-e9d0c63e-4a8c-4041-8b58-da5f42800f2e"
+        region_name = "us-east-1"
+
+        # Create a Secrets Manager client
+        session = boto3.session.Session()
+        client = session.client(
+            service_name='secretsmanager',
+            region_name=region_name
+        )
+
+        try:
+            get_secret_value_response = client.get_secret_value(
+                SecretId=secret_name
+            )
+            #print(get_secret_value_response);
+
+        except ClientError as e:
+            # Log the exception
+            print(f"An error occurred: {e}")
+            # Optionally, handle specific exceptions or re-raise if necessary
+            raise
+
+        if 'SecretString' in get_secret_value_response:
+            secret_str = get_secret_value_response['SecretString']
+            secret_dict = json.loads(secret_str)
+            password = secret_dict.get('password')
+            #print("password: "+password);
+            return password;
 
     def save_result(self, result: AnalysisResult) -> str:
         """Save analysis result to DocumentDB and return its ID"""
