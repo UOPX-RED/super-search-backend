@@ -6,7 +6,11 @@ import json
 from typing import List, Optional
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+import os
+from dotenv import load_dotenv
 
+if os.environ.get("ENVIRONMENT") == "LOCAL":
+    load_dotenv('.env-local')
 
 class DocumentDBService:
     def __init__(self):
