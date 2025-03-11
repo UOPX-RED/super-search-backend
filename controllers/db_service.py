@@ -5,6 +5,18 @@ from models import AnalysisResult
 from typing import List, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
+
+
+def getRealDecimal(obj):
+
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: getRealDecimal(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [getRealDecimal(i) for i in obj]
+    return obj
 
 
 class DynamoDBService:
@@ -16,6 +28,9 @@ class DynamoDBService:
         """Save analysis result to DynamoDB and return its ID"""
         result_dict = result.model_dump()
         result_dict['created_at'] = result.created_at.isoformat()
+
+
+        result_dict = getRealDecimal(result_dict)
 
         # Insert document
         insert_result = self.table.put_item(

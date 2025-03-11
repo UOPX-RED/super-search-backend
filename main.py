@@ -49,7 +49,8 @@ OPEN_PATHS = [
     "/openapi.json",
     "/auth/login",
     "/auth/init",
-    "/redoc"
+    "/redoc",
+    # "/analyze"
 ]
 
 
