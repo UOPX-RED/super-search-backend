@@ -4,6 +4,7 @@ from uuid import uuid4
 import json
 import os
 import logging
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -12,6 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger('ai_service')
 
+load_dotenv()
 
 class TextAnalyzer:
     def __init__(self):
@@ -31,7 +33,9 @@ class TextAnalyzer:
         logger.info("Setting up ChatBedrock with Claude v3")
         self.llm = ChatBedrock(
             model_id="anthropic.claude-3-sonnet-20240229-v1:0",
-            model_kwargs={"max_tokens": 4000}
+            model_kwargs={"max_tokens": 4000},
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
         )
         logger.info("TextAnalyzer initialization complete")
 
