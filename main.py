@@ -10,6 +10,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 import logging
 import os
+import httpx 
 
 from utils.azure_sso import (
     auth_middleware,
@@ -45,17 +46,37 @@ app.add_middleware(
 OPEN_PATHS = [
     "/",
     "/health",
+    "/debug",
     "/docs",
     "/openapi.json",
     "/auth/login",
     "/auth/init",
     "/redoc",
-    # "/analyze"
+    "/api/templates",
+    "/course-details",
+    "/api/programs",
+    "/analyze"
 ]
 
 
 @app.middleware("http")
 async def sso_middleware(request: Request, call_next):
+    path = request.url.path
+    logging.info(f"Request path: {path}")
+    
+    for open_path in OPEN_PATHS:
+        if "{" in open_path:
+            pattern = open_path.replace("{course_code:path}", ".*")
+            import re
+            if re.match(f"^{pattern}$", path):
+                logging.info(f"Path {path} matches open path pattern {open_path}")
+                break
+        elif path == open_path or path.startswith(open_path + "/"):
+            logging.info(f"Path {path} matches open path {open_path}")
+            break
+    else:
+        logging.warning(f"Path {path} does not match any open path")
+        
     return await auth_middleware(request, call_next, OPEN_PATHS)
 
 @app.get("/health")
@@ -138,6 +159,81 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=500, detail="Failed to extract")
 
     return user_info
+
+
+@app.get("/api/templates")
+async def get_templates():
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://stage.phoenix.edu/services/courses/v1/templates")
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from external API: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to external API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
+
+
+@app.get("/course-details")
+async def get_course_details_query(course_code: str):
+    try:
+        url = f"https://stage.phoenix.edu/services/courses/v1/templates/curriculum?courseCode={course_code}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from external API: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to external API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching course details: {str(e)}")
+
+
+@app.get("/api/programs")
+async def get_programs():
+    try:
+        token = os.getenv("PHOENIX_API_TOKEN")
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        logging.info(f"Making request to Phoenix API with token: {token[:10]}...")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.st.uopx.io/api/programs/v3/programs/getAll",
+                headers=headers
+            )
+            
+            logging.info(f"Phoenix API response status: {response.status_code}")
+            if response.status_code != 200:
+                logging.error(f"Phoenix API error response: {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from Phoenix API: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to Phoenix API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
 
 
 if __name__ == "__main__":
