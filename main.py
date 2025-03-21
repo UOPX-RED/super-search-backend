@@ -1,3 +1,4 @@
+
 # main.py
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -11,7 +12,9 @@ from dotenv import load_dotenv
 import logging
 import os
 import httpx 
+import time
 
+from utils.get_api_token import (get_cognito_token,refresh_token,token_cache)
 from utils.azure_sso import (
     auth_middleware,
     init_auth,
@@ -23,6 +26,19 @@ from utils.azure_sso import (
 )
 
 load_dotenv()
+
+token = get_cognito_token()
+print(f"Cognito Token: {token[:5]}")
+
+# Automatically refresh the token if needed
+if not token or token_cache['expiration'] <= time.time():
+    print("Refreshing token...")
+    token = refresh_token()
+    print(f"Refreshed Cognito Token: {token[:5]}*****")
+
+#get API URLs
+COURSES_API_URL = os.getenv("COURSES_API_URL")
+PROGRAMS_MS_URL = os.getenv("PROGRAMS_MS_URL")
 
 app = FastAPI(title="Educational Text Analysis API")
 text_analyzer = TextAnalyzer()
@@ -161,11 +177,25 @@ async def get_current_user(request: Request):
     return user_info
 
 
-@app.get("/api/templates")
+@app.get("/api/courses/templates")
 async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("https://stage.phoenix.edu/services/courses/v1/templates")
+            if not token:
+                raise HTTPException(status_code=500, detail="API token not configured")
+            
+            if not token.startswith("Bearer "):
+                token = f"Bearer {token}"
+                
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            response = await client.get(
+                COURSES_API_URL,
+                headers=headers
+            )
             
             if response.status_code != 200:
                 raise HTTPException(
@@ -182,9 +212,22 @@ async def get_templates():
 @app.get("/course-details")
 async def get_course_details_query(course_code: str):
     try:
-        url = f"https://stage.phoenix.edu/services/courses/v1/templates/curriculum?courseCode={course_code}"
+
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        url = f"{COURSES_API_URL}/templates/curriculum?courseCode={course_code}"
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url,headers)
             
             if response.status_code != 200:
                 raise HTTPException(
@@ -201,7 +244,7 @@ async def get_course_details_query(course_code: str):
 @app.get("/api/programs")
 async def get_programs():
     try:
-        token = os.getenv("PHOENIX_API_TOKEN")
+        
         if not token:
             raise HTTPException(status_code=500, detail="API token not configured")
         
@@ -217,8 +260,7 @@ async def get_programs():
         logging.info(f"Making request to Phoenix API with token: {token[:10]}...")
         
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://api.st.uopx.io/api/programs/v3/programs/getAll",
+            response = await client.get(PROGRAMS_MS_URL,
                 headers=headers
             )
             
