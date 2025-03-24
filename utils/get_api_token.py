@@ -3,23 +3,30 @@ import base64
 import requests
 from dotenv import load_dotenv
 import time
+from utils.get_secrets import get_secret
 
 # Load environment variables from .env file
 if os.getenv('ENVIRONMENT') == 'LOCAL':
     load_dotenv(".env-local")
+    print("Loaded environment variables from .env-local")
 else:
     load_dotenv()
+
+#read secret from secret manager
+secret_name = "supersearch/prod/apiClientSecrets"
+result = get_secret(secret_name)
+if result is not None:
+    #print(f"Retrieved secret: {result}")
+    print(f"API Key: {result['API_CLIENT_ID']}")
+    client_id = result['API_CLIENT_ID']
+    client_secret = result['API_CLIENT_SECRET']
+else:
+    print("Failed to retrieve secret from secrets manager.")
 
 # Retrieve Cognito URL, client ID, and client secret from environment variables
 cognito_url = os.getenv('COGNITO_URL')
 if not cognito_url:
     raise ValueError("Environment variable cognito_url is not set.")
-client_id = os.getenv('API_CLIENT_ID')
-if not client_id:
-    raise ValueError("Environment variable client_id is not set.")
-client_secret = os.getenv('API_CLIENT_SECRET')
-if not client_secret:
-    raise ValueError("Environment variable client_secret is not set.")
 
 # Cache to store the token and its expiration time
 token_cache = {
@@ -61,7 +68,7 @@ def get_cognito_token():
             
             # Extract the token and its expiration time from the response
             id_token = response_data['access_token']
-            print("id_token: ",id_token)
+            print(f"Cognito Token retrieved: {id_token[:5]}")
             expires_in = response_data['expires_in']
             print("expires_in: ",expires_in)
             
