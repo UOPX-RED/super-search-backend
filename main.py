@@ -41,6 +41,13 @@ COURSES_API_URL = os.getenv("COURSES_API_URL")
 PROGRAMS_MS_URL = os.getenv("PROGRAMS_MS_URL")
 
 app = FastAPI(title="Educational Text Analysis API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 text_analyzer = TextAnalyzer()
 db_service = DynamoDBService()
 
@@ -51,13 +58,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 OPEN_PATHS = [
     "/",
@@ -177,23 +177,24 @@ async def get_current_user(request: Request):
     return user_info
 
 
-@app.get("/api/courses/templates")
+@app.get("/api/templates")
 async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
+            token = get_cognito_token()
+            print(f"Cognito Token: {token[:5]}")
             if not token:
                 raise HTTPException(status_code=500, detail="API token not configured")
-            
-            if not token.startswith("Bearer "):
-                token = f"Bearer {token}"
                 
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
                 "Accept": "application/json"
             }
+            url = f"{COURSES_API_URL}/templates"
+
             response = await client.get(
-                COURSES_API_URL,
+                url,
                 headers=headers
             )
             
@@ -212,6 +213,8 @@ async def get_templates():
 @app.get("/course-details")
 async def get_course_details_query(course_code: str):
     try:
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
 
         if not token:
             raise HTTPException(status_code=500, detail="API token not configured")
@@ -226,8 +229,9 @@ async def get_course_details_query(course_code: str):
         }
         
         url = f"{COURSES_API_URL}/templates/curriculum?courseCode={course_code}"
+        print(f"URL: {url}")
         async with httpx.AsyncClient() as client:
-            response = await client.get(url,headers)
+            response = await client.get(url, headers=headers)
             
             if response.status_code != 200:
                 raise HTTPException(
@@ -244,7 +248,8 @@ async def get_course_details_query(course_code: str):
 @app.get("/api/programs")
 async def get_programs():
     try:
-        
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
         if not token:
             raise HTTPException(status_code=500, detail="API token not configured")
         
@@ -260,7 +265,8 @@ async def get_programs():
         logging.info(f"Making request to Phoenix API with token: {token[:10]}...")
         
         async with httpx.AsyncClient() as client:
-            response = await client.get(PROGRAMS_MS_URL,
+            url=f"{PROGRAMS_MS_URL}/programs/getAll"
+            response = await client.get(url,
                 headers=headers
             )
             
@@ -280,5 +286,4 @@ async def get_programs():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
