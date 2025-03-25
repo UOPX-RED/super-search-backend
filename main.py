@@ -177,7 +177,7 @@ async def get_current_user(request: Request):
     return user_info
 
 
-@app.get("/api/templates")
+@app.get("/api/course-templates")
 async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
@@ -211,7 +211,7 @@ async def get_templates():
 
 
 @app.get("/course-details")
-async def get_course_details_query(course_code: str):
+async def get_course_details_query(courseCode: str):
     try:
         token = get_cognito_token()
         print(f"Cognito Token: {token[:5]}")
@@ -228,7 +228,7 @@ async def get_course_details_query(course_code: str):
             "Accept": "application/json"
         }
         
-        url = f"{COURSES_API_URL}/templates/curriculum?courseCode={course_code}"
+        url = f"{COURSES_API_URL}/templates/curriculum?courseCode={courseCode}"
         print(f"URL: {url}")
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
@@ -262,7 +262,7 @@ async def get_programs():
             "Accept": "application/json"
         }
         
-        logging.info(f"Making request to Phoenix API with token: {token[:10]}...")
+        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
         
         async with httpx.AsyncClient() as client:
             url=f"{PROGRAMS_MS_URL}/programs/getAll"
@@ -270,17 +270,52 @@ async def get_programs():
                 headers=headers
             )
             
-            logging.info(f"Phoenix API response status: {response.status_code}")
+            logging.info(f"Programs MS response status: {response.status_code}")
             if response.status_code != 200:
-                logging.error(f"Phoenix API error response: {response.text}")
+                logging.error(f"PPrograms MS error response: {response.text}")
                 raise HTTPException(
                     status_code=response.status_code,
-                    detail=f"Error from Phoenix API: {response.text}"
+                    detail=f"Error from Programs MS: {response.text}"
                 )
                 
             return response.json()
     except httpx.RequestError as e:
-        logging.error(f"Error making request to Phoenix API: {str(e)}")
+        logging.error(f"Error making request to Programs MS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
+
+@app.get("/api/programs-details")
+async def get_programs_by_programId(programId: str):
+    try:
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
+        
+        async with httpx.AsyncClient() as client:
+            url = f"{PROGRAMS_MS_URL}/templates/?$filter=programId eq {programId}"
+            response = await client.get(url,
+                headers=headers
+            )
+            
+            logging.info(f"Programs MS response status: {response.status_code}")
+            if response.status_code != 200:
+                logging.error(f"Programs MS error response: {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from Programs MS: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to Programs MS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
 
 
