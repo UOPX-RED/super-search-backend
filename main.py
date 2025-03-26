@@ -1,4 +1,3 @@
-
 # main.py
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -71,6 +70,7 @@ OPEN_PATHS = [
     "/api/templates",
     "/course-details",
     "/api/programs",
+    "/api/programs-details", 
     "/analyze"
 ]
 
@@ -177,7 +177,7 @@ async def get_current_user(request: Request):
     return user_info
 
 
-@app.get("/api/course-templates")
+@app.get("/api/templates")
 async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
@@ -290,6 +290,9 @@ async def get_programs_by_programId(programId: str):
         print(f"Cognito Token: {token[:5]}")
         if not token:
             raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
             
         headers = {
             "Authorization": token,
@@ -300,7 +303,7 @@ async def get_programs_by_programId(programId: str):
         logging.info(f"Making request to Programs MS with token: {token[:10]}...")
         
         async with httpx.AsyncClient() as client:
-            url = f"{PROGRAMS_MS_URL}/templates/?$filter=programId eq {programId}"
+            url = f"{PROGRAMS_MS_URL}/templates?$filter=programId eq {programId}"
             response = await client.get(url,
                 headers=headers
             )
