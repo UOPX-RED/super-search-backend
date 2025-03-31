@@ -6,11 +6,11 @@ import time
 from utils.get_secrets import get_secret
 
 # Load environment variables from .env file
-if os.getenv('ENVIRONMENT') == 'LOCAL':
-    load_dotenv(".env-local")
-    print("Loaded environment variables from .env-local")
-else:
-    load_dotenv()
+# if os.getenv('ENVIRONMENT') == 'LOCAL':
+#     load_dotenv(".env-local")
+#     print("Loaded environment variables from .env-local")
+# else:
+load_dotenv()
 
 #read secret from secret manager
 secret_name = "supersearch/prod/apiClientSecrets"

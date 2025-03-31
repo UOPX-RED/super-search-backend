@@ -10,11 +10,11 @@ from typing import Callable, Optional
 from dotenv import load_dotenv
 from utils.get_secrets import get_secret
 
-if os.getenv('ENVIRONMENT') == 'LOCAL':
-    load_dotenv(".env-local")
-    print("Loaded environment variables from .env-local")
-else:
-    load_dotenv()
+# if os.getenv('ENVIRONMENT') == 'LOCAL':
+#     load_dotenv(".env-local")
+#     print("Loaded environment variables from .env-local")
+# else:
+load_dotenv()
 
 secret_name = "supersearch/prod/azureClientSecrets"
 result = get_secret(secret_name)
