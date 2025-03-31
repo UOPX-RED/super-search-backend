@@ -24,6 +24,8 @@ if result is not None:
     TENANT_ID = result['TENANT_ID']
     CLIENT_ID = result['AZURE_CLIENT_ID']
     CLIENT_SECRET = result["AZURE_CLIENT_SECRET"]
+    print(f"Az CLIENT_ID loaded:  {CLIENT_ID[:5]}")
+    print(f"Az tenant id loaded:  {TENANT_ID[:5]}")
 else:
     print("Failed to retrieve secret from secrets manager.")
 

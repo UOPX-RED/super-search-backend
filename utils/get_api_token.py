@@ -20,6 +20,8 @@ if result is not None:
     print(f"API Key: {result['API_CLIENT_ID']}")
     client_id = result['API_CLIENT_ID']
     client_secret = result['API_CLIENT_SECRET']
+    print(f"API Key:  {client_id[:5]}")
+    print(f"API Secret:  {client_secret[:5]}")
 else:
     print("Failed to retrieve secret from secrets manager.")
 
