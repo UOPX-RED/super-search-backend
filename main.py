@@ -10,7 +10,10 @@ from uuid import uuid4
 from dotenv import load_dotenv
 import logging
 import os
+import httpx 
+import time
 
+from utils.get_api_token import (get_cognito_token,refresh_token,token_cache)
 from utils.azure_sso import (
     auth_middleware,
     init_auth,
@@ -23,7 +26,27 @@ from utils.azure_sso import (
 
 load_dotenv()
 
+token = get_cognito_token()
+print(f"Cognito Token: {token[:5]}")
+
+# Automatically refresh the token if needed
+if not token or token_cache['expiration'] <= time.time():
+    print("Refreshing token...")
+    token = refresh_token()
+    print(f"Refreshed Cognito Token: {token[:5]}*****")
+
+#get API URLs
+COURSES_API_URL = os.getenv("COURSES_API_URL")
+PROGRAMS_MS_URL = os.getenv("PROGRAMS_MS_URL")
+
 app = FastAPI(title="Educational Text Analysis API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 text_analyzer = TextAnalyzer()
 db_service = DynamoDBService()
 
@@ -34,28 +57,42 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 OPEN_PATHS = [
     "/",
     "/health",
+    "/debug",
     "/docs",
     "/openapi.json",
     "/auth/login",
     "/auth/init",
     "/redoc",
-    # "/analyze"
+    "/api/templates",
+    "/api/course-details",
+    "/api/programs",
+    "/api/program-details", 
+    "/analyze"
 ]
 
 
 @app.middleware("http")
 async def sso_middleware(request: Request, call_next):
+    path = request.url.path
+    logging.info(f"Request path: {path}")
+    
+    for open_path in OPEN_PATHS:
+        if "{" in open_path:
+            pattern = open_path.replace("{course_code:path}", ".*")
+            import re
+            if re.match(f"^{pattern}$", path):
+                logging.info(f"Path {path} matches open path pattern {open_path}")
+                break
+        elif path == open_path or path.startswith(open_path + "/"):
+            logging.info(f"Path {path} matches open path {open_path}")
+            break
+    else:
+        logging.warning(f"Path {path} does not match any open path")
+        
     return await auth_middleware(request, call_next, OPEN_PATHS)
 
 @app.get("/health")
@@ -140,7 +177,151 @@ async def get_current_user(request: Request):
     return user_info
 
 
+@app.get("/api/templates")
+async def get_templates():
+    try:
+        async with httpx.AsyncClient() as client:
+            token = get_cognito_token()
+            print(f"Cognito Token: {token[:5]}")
+            if not token:
+                raise HTTPException(status_code=500, detail="API token not configured")
+                
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            url = f"{COURSES_API_URL}/templates"
+
+            response = await client.get(
+                url,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from external API: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to external API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
+
+
+@app.get("/api/course-details")
+async def get_course_details_query(courseCode: str):
+    try:
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
+
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        url = f"{COURSES_API_URL}/templates/curriculum?courseCode={courseCode}"
+        print(f"URL: {url}")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from external API: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to external API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching course details: {str(e)}")
+
+
+@app.get("/api/programs")
+async def get_programs():
+    try:
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
+        
+        async with httpx.AsyncClient() as client:
+            url=f"{PROGRAMS_MS_URL}/programs/getAll"
+            response = await client.get(url,
+                headers=headers
+            )
+            
+            logging.info(f"Programs MS response status: {response.status_code}")
+            if response.status_code != 200:
+                logging.error(f"PPrograms MS error response: {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from Programs MS: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to Programs MS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
+
+@app.get("/api/program-details")
+async def get_programs_by_programId(programId: str):
+    try:
+        token = get_cognito_token()
+        print(f"Cognito Token: {token[:5]}")
+        if not token:
+            raise HTTPException(status_code=500, detail="API token not configured")
+        
+        if not token.startswith("Bearer "):
+            token = f"Bearer {token}"
+            
+        headers = {
+            "Authorization": token,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
+        
+        async with httpx.AsyncClient() as client:
+            url = f"{PROGRAMS_MS_URL}/templates?$filter=programId eq {programId}"
+            response = await client.get(url,
+                headers=headers
+            )
+            
+            logging.info(f"Programs MS response status: {response.status_code}")
+            if response.status_code != 200:
+                logging.error(f"Programs MS error response: {response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Error from Programs MS: {response.text}"
+                )
+                
+            return response.json()
+    except httpx.RequestError as e:
+        logging.error(f"Error making request to Programs MS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

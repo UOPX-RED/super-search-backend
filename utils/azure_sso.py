@@ -8,14 +8,25 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from typing import Callable, Optional
 from dotenv import load_dotenv
+from utils.get_secrets import get_secret
 
+if os.getenv('ENVIRONMENT') == 'LOCAL':
+    load_dotenv(".env-local")
+    print("Loaded environment variables from .env-local")
+else:
+    load_dotenv()
 
-load_dotenv()
+secret_name = "supersearch/prod/azureClientSecrets"
+result = get_secret(secret_name)
+if result is not None:
+    #print(f"Retrieved secret: {result}")
+    print(f"AZURE_CLIENT_ID: {result['AZURE_CLIENT_ID']}")
+    TENANT_ID = result['TENANT_ID']
+    CLIENT_ID = result['AZURE_CLIENT_ID']
+    CLIENT_SECRET = result["AZURE_CLIENT_SECRET"]
+else:
+    print("Failed to retrieve secret from secrets manager.")
 
-
-TENANT_ID = os.getenv("TENANT_ID")
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET", "")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 JWKS_URL = f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
