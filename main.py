@@ -71,7 +71,9 @@ OPEN_PATHS = [
     "/course-details",
     "/programs",
     "/program-details", 
-    "/analyze"
+    "/analyze",
+    "/keywordsearch",
+    "/conceptsearch"
 ]
 
 
@@ -109,6 +111,38 @@ async def analyze_text(payload: TextPayload):
 
     # Perform analysis
     result = text_analyzer.analyze_text(payload, request_id)
+
+    # Save to database
+    db_service.save_result(result)
+
+    return result
+
+@app.post("/keywordsearch", response_model=AnalysisResult)
+async def analyze_text_by_keywords(payload: TextPayload):
+    """
+    Analyze educational text for specific keywords/phrases and highlight matches
+    """
+    # Generate unique request ID
+    request_id = str(uuid4())
+
+    # Perform analysis
+    result = text_analyzer.analyze_text_lexical(payload, request_id)
+
+    # Save to database
+    db_service.save_result(result)
+
+    return result
+
+@app.post("/conceptsearch", response_model=AnalysisResult)
+async def analyze_text_by_concept(payload: TextPayload):
+    """
+    Analyze educational text for specific keywords/phrases and highlight matches
+    """
+    # Generate unique request ID
+    request_id = str(uuid4())
+
+    # Perform analysis
+    result = text_analyzer.analyze_text_semantic(payload, request_id)
 
     # Save to database
     db_service.save_result(result)

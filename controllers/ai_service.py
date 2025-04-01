@@ -39,6 +39,83 @@ class TextAnalyzer:
         )
         logger.info("TextAnalyzer initialization complete")
 
+    #Method for conceptual analysis        
+    def analyze_text_semantic(self, payload: TextPayload, request_id: str) -> AnalysisResult:
+        logger.info(f"Starting semantic analysis for request_id: {request_id}")
+        keywords = payload.keywords if payload.keywords else self.default_keywords
+        logger.info(f"Using keywords: {keywords}")
+        prompt = self._build_prompt(payload.text, keywords)
+        logger.debug(f"Generated prompt: {prompt[:100]}...")
+        try:
+            response = self.llm.invoke(prompt)
+            logger.info("Received response from LLM API")
+            logger.debug(f"LLM response: {response.content[:1000]}...")
+        except Exception as e:
+            logger.error(f"Error calling LLM API: {str(e)}", exc_info=True)
+            raise
+        logger.info("Parsing LLM response")
+        result_data = self._parse_response(response.content)
+        logger.info(f"Found {len(result_data.get('highlighted_sections', []))} highlighted sections")
+        result = AnalysisResult(
+            id=str(uuid4()),
+            request_id=request_id,
+            source_id=payload.source_id,
+            content_type=payload.content_type,
+            original_text=payload.text,
+            keywords_searched=keywords,
+            highlighted_sections=[
+                HighlightedSection(**section) for section in result_data.get("highlighted_sections", [])
+            ],
+            has_flags='true' if len(result_data.get("highlighted_sections", [])) > 0 else 'false',
+            metadata=payload.metadata,
+            keywords_matched=result_data.get("keywords_matched", [])
+        )
+        logger.info(f"Semantic analysis complete for request_id: {request_id}, has_flags: {result.has_flags}")
+        return result
+
+    # method for analyzing exact keyword references
+    def analyze_text_lexical(self, payload: TextPayload, request_id: str) -> AnalysisResult:
+        logger.info(f"Starting lexical analysis for request_id: {request_id}")
+        keywords = payload.keywords if payload.keywords else self.default_keywords
+        text = payload.text
+        highlighted_sections = []
+        keywords_matched = []
+        for keyword in keywords:
+            start = 0
+            keyword_lower = keyword.lower()
+            text_lower = text.lower()
+            while True:
+                idx = text_lower.find(keyword_lower, start)
+                if idx == -1:
+                    break
+                end_idx = idx + len(keyword)
+                highlighted_sections.append({
+                    "start_index": idx,
+                    "end_index": end_idx,
+                    "matched_text": text[idx:end_idx],
+                    "reason": f"Exact match for '{keyword}'",
+                    "concept_matched": keyword,
+                    "confidence": 1.0
+                })
+                if keyword not in keywords_matched:
+                    keywords_matched.append(keyword)
+                start = end_idx
+        result = AnalysisResult(
+            id=str(uuid4()),
+            request_id=request_id,
+            source_id=payload.source_id,
+            content_type=payload.content_type,
+            original_text=text,
+            keywords_searched=keywords,
+            highlighted_sections=[HighlightedSection(**section) for section in highlighted_sections],
+            has_flags='true' if highlighted_sections else 'false',
+            metadata=payload.metadata,
+            keywords_matched=keywords_matched
+        )
+        logger.info(f"Lexical analysis complete for request_id: {request_id}, found {len(highlighted_sections)} matches")
+        return result
+    
+    # Hybrid search
     def analyze_text(self, payload: TextPayload, request_id: str) -> AnalysisResult:
         logger.info(f"Starting analysis for request_id: {request_id}")
         # Use keywords from payload or fall back to defaults if empty
@@ -128,6 +205,7 @@ class TextAnalyzer:
 
         return prompt
 
+    # Method to parse the LLM response
     def _parse_response(self, response_text):
         # Extract JSON from response
         logger.info("Parsing LLM response")
