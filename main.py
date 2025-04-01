@@ -182,9 +182,13 @@ async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
             token = get_cognito_token()
-            print(f"Cognito Token: {token[:5]}")
-            if not token:
-                raise HTTPException(status_code=500, detail="API token not configured")
+            print(f"At getTemplates(), Cognito Token: {token[:5]}")
+            # if not token:
+            #     raise HTTPException(status_code=500, detail="API token not configured")
+            if not token or token_cache['expiration'] <= time.time():
+                print("Refreshing token...")
+                token = refresh_token()
+                print(f"Refreshed Cognito Token: {token[:5]}*****")
                 
             headers = {
                 "Authorization": f"Bearer {token}",
@@ -214,16 +218,17 @@ async def get_templates():
 async def get_course_details_query(courseCode: str):
     try:
         token = get_cognito_token()
-        print(f"Cognito Token: {token[:5]}")
+        print(f"At get_course_details_query(), Cognito Token: {token[:5]}")
 
-        if not token:
-            raise HTTPException(status_code=500, detail="API token not configured")
-        
-        if not token.startswith("Bearer "):
-            token = f"Bearer {token}"
+        # if not token:
+        #     raise HTTPException(status_code=500, detail="API token not configured")
+        if not token or token_cache['expiration'] <= time.time():
+            print("Refreshing token...")
+            token = refresh_token()
+            print(f"Refreshed Cognito Token: {token[:5]}*****")
             
         headers = {
-            "Authorization": token,
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
@@ -249,20 +254,22 @@ async def get_course_details_query(courseCode: str):
 async def get_programs():
     try:
         token = get_cognito_token()
-        print(f"Cognito Token: {token[:5]}")
-        if not token:
-            raise HTTPException(status_code=500, detail="API token not configured")
+        print(f"At get_programs(), Cognito Token: {token[:5]}")
+        # if not token:
+        #     raise HTTPException(status_code=500, detail="API token not configured")
         
-        if not token.startswith("Bearer "):
-            token = f"Bearer {token}"
+        if not token or token_cache['expiration'] <= time.time():
+            print("Refreshing token...")
+            token = refresh_token()
+            print(f"Refreshed Cognito Token: {token[:5]}*****")
             
         headers = {
-            "Authorization": token,
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
         
-        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
+        logging.info(f"Making request to Programs MS with token: {token[:5]}...")
         
         async with httpx.AsyncClient() as client:
             url=f"{PROGRAMS_MS_URL}/programs/getAll"
@@ -287,20 +294,24 @@ async def get_programs():
 async def get_programs_by_programId(programId: str):
     try:
         token = get_cognito_token()
-        print(f"Cognito Token: {token[:5]}")
-        if not token:
-            raise HTTPException(status_code=500, detail="API token not configured")
+        print(f"At get_programs_by_programId(), Cognito Token: {token[:5]}")
+        # if not token:
+        #     raise HTTPException(status_code=500, detail="API token not configured")
         
-        if not token.startswith("Bearer "):
-            token = f"Bearer {token}"
+        # if not token.startswith("Bearer "):
+        #     token = f"Bearer {token}"
+        if not token or token_cache['expiration'] <= time.time():
+            print("Refreshing token...")
+            token = refresh_token()
+            print(f"Refreshed Cognito Token: {token[:5]}*****")
             
         headers = {
-            "Authorization": token,
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
         
-        logging.info(f"Making request to Programs MS with token: {token[:10]}...")
+        logging.info(f"Making request to Programs MS with token: {token[:5]}...")
         
         async with httpx.AsyncClient() as client:
             url = f"{PROGRAMS_MS_URL}/templates?$filter=programId eq {programId}"

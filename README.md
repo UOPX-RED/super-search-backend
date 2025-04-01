@@ -14,8 +14,8 @@ Instructions to deploy image on to ECR -
 
 once above commands are successful, Go to ECR and check if you can find latest image deployed.
 
-then Go to EKS and check clusters. You will need to restart cluster for it to point to latest image.
+Then Go to EKS and check clusters. You will need to restart cluster for it to point to latest image.
 Amazon Elastic Kubernetes Service > Clusters > super-search-cluster > deployment-2048 > copy latest image id and execute below command in terminal
 kubectl rollout restart deployment deployment-2048 -n game-2048
 
-to checkout logs, use below command - kubectl logs deployment-2048-6b5dd57498-45qh2 -n game-2048
+To checkout logs, use below command - kubectl logs deployment-2048-797fdd898b-8t9n9 -n game-2048
