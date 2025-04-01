@@ -20,7 +20,6 @@ secret_name = "supersearch/prod/azureClientSecrets"
 result = get_secret(secret_name)
 if result is not None:
     #print(f"Retrieved secret: {result}")
-    print(f"AZURE_CLIENT_ID: {result['AZURE_CLIENT_ID']}")
     TENANT_ID = result['TENANT_ID']
     CLIENT_ID = result['AZURE_CLIENT_ID']
     CLIENT_SECRET = result["AZURE_CLIENT_SECRET"]

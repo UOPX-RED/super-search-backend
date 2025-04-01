@@ -67,10 +67,10 @@ OPEN_PATHS = [
     "/auth/login",
     "/auth/init",
     "/redoc",
-    "/api/templates",
-    "/api/course-details",
-    "/api/programs",
-    "/api/program-details", 
+    "/templates",
+    "/course-details",
+    "/programs",
+    "/program-details", 
     "/analyze"
 ]
 
@@ -177,7 +177,7 @@ async def get_current_user(request: Request):
     return user_info
 
 
-@app.get("/api/templates")
+@app.get("/templates")
 async def get_templates():
     try:
         async with httpx.AsyncClient() as client:
@@ -210,7 +210,7 @@ async def get_templates():
         raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
 
 
-@app.get("/api/course-details")
+@app.get("/course-details")
 async def get_course_details_query(courseCode: str):
     try:
         token = get_cognito_token()
@@ -245,7 +245,7 @@ async def get_course_details_query(courseCode: str):
         raise HTTPException(status_code=500, detail=f"Error fetching course details: {str(e)}")
 
 
-@app.get("/api/programs")
+@app.get("/programs")
 async def get_programs():
     try:
         token = get_cognito_token()
@@ -283,7 +283,7 @@ async def get_programs():
         logging.error(f"Error making request to Programs MS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
 
-@app.get("/api/program-details")
+@app.get("/program-details")
 async def get_programs_by_programId(programId: str):
     try:
         token = get_cognito_token()
