@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from models import TextPayload, AnalysisResult
-from controllers.ai_service import TextAnalyzer
+from controllers.ai_service_for_text_analysis import TextAnalyzer
 from controllers.db_service import DynamoDBService
 from typing import List, Optional
 from uuid import uuid4
