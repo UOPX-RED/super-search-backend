@@ -2,8 +2,9 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from models import TextPayload, AnalysisResult
+from models import TextPayload, AnalysisResult, AlternateTextSuggestionResult
 from controllers.ai_service_for_text_analysis import TextAnalyzer
+from controllers.ai_service_for_alternate_text_suggestion import StatementSuggester
 from controllers.db_service import DynamoDBService
 from typing import List, Optional
 from uuid import uuid4
@@ -48,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 text_analyzer = TextAnalyzer()
+alternate_text_suggestion = StatementSuggester()
 db_service = DynamoDBService()
 
 # Configure logging based on environment setting
@@ -115,6 +117,21 @@ async def analyze_text(payload: TextPayload):
 
     return result
 
+@app.post("/alternate-text-suggestion", response_model=AlternateTextSuggestionResult)
+async def alternate_text_suggestion(payload: TextPayload):
+    """
+    Suggest alternate text for a given sentence based on keywords/phrases
+    """
+    # Generate unique request ID
+    request_id = str(uuid4())
+
+    # Perform analysis
+    result = alternate_text_suggestion.analyze_suggestions(payload, request_id)
+
+    # Save to database
+    db_service.save_result(result)
+
+    return result
 
 @app.get("/results/{source_id}", response_model=List[AnalysisResult])
 async def get_results(source_id: str):

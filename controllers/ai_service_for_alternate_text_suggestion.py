@@ -1,4 +1,4 @@
-from models import TextPayload, AnalysisResult
+from models import SuggestionPayload, AlternateTextSuggestionResult, AlternativeSuggestion
 from langchain_aws import ChatBedrock
 from uuid import uuid4
 import json
@@ -17,7 +17,7 @@ load_dotenv()
 
 class StatementSuggester:
 
-    def __init__(self,  request_id):
+    def __init__(self, request_id):
         
         self.request_id = request_id
 
@@ -41,7 +41,7 @@ class StatementSuggester:
         )
         logger.info("StatementSuggester initialization complete")
 
-    def analyze_suggestions(self, payload: TextPayload, request_id: str) -> AnalysisResult:
+    def analyze_suggestions(self, payload: SuggestionPayload, request_id: str) -> AlternateTextSuggestionResult:
         logger.info(f"Starting analysis for request_id: {request_id}")
 
         # Use keywords from payload or fall back to defaults if empty
@@ -51,7 +51,7 @@ class StatementSuggester:
         #skills = payload.skills if payload.keywords else ""
 
         # Construct the prompt
-        prompt = self._build_prompt(payload.sentence, keywords, payload.req_prompt)
+        prompt = self._build_prompt(payload.sentence, payload.req_prompt)
         # Log first 100 chars of prompt
         logger.debug(f"Generated prompt: {prompt[:100]}...")
 
@@ -74,18 +74,18 @@ class StatementSuggester:
 
         # Create analysis result
         logger.info("Creating analysis result")
-        result = AnalysisResult(
+        result = AlternateTextSuggestionResult(
             id=str(uuid4()),
             request_id=request_id,
             source_id=payload.source_id,
             content_type=payload.content_type,
             original_sentence=payload.sentence,
-            #keywords_searched=keywords,
-            #highlighted_sections=[HighlightedSection(**section) for section in
-            #                      result_data.get("highlighted_sections", [])],
+            keywords_searched=keywords,
             #has_flags='true' if len(result_data.get("highlighted_sections", [])) > 0 else 'false',
+            alternative_suggestions=[AlternativeSuggestion(**section) for section in
+                                  result_data.get("alternative_suggestions", [])]
             metadata=payload.metadata,
-            #keywords_matched=result_data.get("keywords_matched", [])
+            message=result_data.get("message", "")
         )
         logger.info(
             f"Analysis complete for request_id: {request_id}, has_flags: {result.has_flags}")
