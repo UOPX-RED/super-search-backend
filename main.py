@@ -6,13 +6,14 @@ from models import TextPayload, AnalysisResult, AlternateTextSuggestionResult
 from controllers.ai_service_for_text_analysis import TextAnalyzer
 from controllers.ai_service_for_alternate_text_suggestion import StatementSuggester
 from controllers.db_service import DynamoDBService
-from typing import List, Optional
+from typing import List, Dict, Any, Optional
 from uuid import uuid4
 from dotenv import load_dotenv
 import logging
 import os
-import httpx 
+import httpx
 import time
+import json
 
 from utils.get_api_token import (get_cognito_token,refresh_token,token_cache)
 from utils.azure_sso import (
@@ -49,7 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 text_analyzer = TextAnalyzer()
-alternate_text_suggestion = StatementSuggester()
+statement_suggester = StatementSuggester(request_id=None)
 db_service = DynamoDBService()
 
 # Configure logging based on environment setting
@@ -72,8 +73,12 @@ OPEN_PATHS = [
     "/templates",
     "/course-details",
     "/programs",
-    "/program-details", 
-    "/analyze"
+    "/program-details",
+    "/analyze",
+    "/keywordsearch",
+    "/conceptsearch",
+    "/alternate-text-suggestion",
+    "/full-sentence-suggestion",
 ]
 
 
@@ -81,7 +86,7 @@ OPEN_PATHS = [
 async def sso_middleware(request: Request, call_next):
     path = request.url.path
     logging.info(f"Request path: {path}")
-    
+
     for open_path in OPEN_PATHS:
         if "{" in open_path:
             pattern = open_path.replace("{course_code:path}", ".*")
@@ -94,7 +99,7 @@ async def sso_middleware(request: Request, call_next):
             break
     else:
         logging.warning(f"Path {path} does not match any open path")
-        
+
     return await auth_middleware(request, call_next, OPEN_PATHS)
 
 @app.get("/health")
@@ -118,20 +123,87 @@ async def analyze_text(payload: TextPayload):
     return result
 
 @app.post("/alternate-text-suggestion", response_model=AlternateTextSuggestionResult)
-async def alternate_text_suggestion(payload: TextPayload):
+async def alt_text_suggestions(request: Request):
     """
     Suggest alternate text for a given sentence based on keywords/phrases
+    """
+    try:
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
+        if "text" in body and "sentence" not in body:
+            body["sentence"] = body["text"]
+        from models import SuggestionPayload
+        payload = SuggestionPayload(**body)
+        request_id = str(uuid4())
+        result = statement_suggester.analyze_suggestions(payload, request_id)
+        db_service.save_result(result)
+
+        return result
+    except Exception as e:
+        logging.exception(f"Error in alternate text suggestion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+
+@app.post("/full-sentence-suggestion")
+async def full_sentence_suggestion(request: Request):
+    """
+    Generate complete alternative sentences or texts that replace problematic terms
+    """
+    try:
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
+
+        request_id = str(uuid4())
+
+        logging.info(f"Full text suggestion request: {request_id}")
+
+        result = statement_suggester.process_full_text_suggestion(body, request_id)
+
+        if result and "db_result" in result:
+            db_service.save_result(result["db_result"])
+
+        if result and "api_response" in result:
+            return result["api_response"]
+        else:
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Error in full sentence suggestion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+
+@app.post("/keywordsearch", response_model=AnalysisResult)
+async def analyze_text_by_keywords(payload: TextPayload):
+    """
+    Analyze educational text for specific keywords/phrases and highlight matches
     """
     # Generate unique request ID
     request_id = str(uuid4())
 
     # Perform analysis
-    result = alternate_text_suggestion.analyze_suggestions(payload, request_id)
+    result = text_analyzer.analyze_text_lexical(payload, request_id)
 
     # Save to database
     db_service.save_result(result)
 
     return result
+
+@app.post("/conceptsearch", response_model=AnalysisResult)
+async def analyze_text_by_concept(payload: TextPayload):
+    """
+    Analyze educational text for specific keywords/phrases and highlight matches
+    """
+    # Generate unique request ID
+    request_id = str(uuid4())
+
+    # Perform analysis
+    result = text_analyzer.analyze_text_semantic(payload, request_id)
+
+    # Save to database
+    db_service.save_result(result)
+
+    return result
+
 
 @app.get("/results/{source_id}", response_model=List[AnalysisResult])
 async def get_results(source_id: str):
