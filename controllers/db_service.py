@@ -2,7 +2,7 @@
 import pymongo
 import os
 from models import AnalysisResult, UploadedCsvData
-from typing import List, Optional
+from typing import List, Optional, Any
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
@@ -98,7 +98,7 @@ class DynamoDBService:
             return item
         return []
     
-    def get_all_download_data(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_all_download_data(self, limit: int = 100) -> List[dict[str, Any]]:
         """Retrieve all download data with an optional limit"""
         table = self.dynamodb.Table('super-search-download-results')
         response = table.scan(Limit=limit)
