@@ -116,6 +116,7 @@ async def analyze_text(payload: TextPayload):
 
     # Perform analysis
     result = text_analyzer.analyze_text(payload, request_id)
+    result["type"]="AnalysisResult" # this is used to identify record and save in respective table
 
     # Save to database
     db_service.save_result(result)
@@ -136,12 +137,15 @@ async def alt_text_suggestions(request: Request):
         payload = SuggestionPayload(**body)
         request_id = str(uuid4())
         result = statement_suggester.analyze_suggestions(payload, request_id)
+        result["type"] = "AlternateTextSuggestion" # this is used to identify record and save in respective table
         db_service.save_result(result)
 
         return result
     except Exception as e:
         logging.exception(f"Error in alternate text suggestion: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+
+
 
 @app.post("/full-sentence-suggestion")
 async def full_sentence_suggestion(request: Request):
@@ -159,6 +163,7 @@ async def full_sentence_suggestion(request: Request):
         result = statement_suggester.process_full_text_suggestion(body, request_id)
 
         if result and "db_result" in result:
+            result["type"] = "AlternateFullSentenceSuggestion" # this is used to identify record and save in respective table
             db_service.save_result(result["db_result"])
 
         if result and "api_response" in result:
@@ -420,6 +425,58 @@ async def get_programs_by_programId(programId: str):
     except httpx.RequestError as e:
         logging.error(f"Error making request to Programs MS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
+
+@app.post("/download-data")
+async def save_download_data(request: Request):
+    """
+    Endpoint to upload CSV data and store it in the database
+    """
+    try:
+        body_bytes = await request.body()
+        body = json.loads(body_bytes)
+
+        if "data" not in body or not isinstance(body["data"], list):
+            raise HTTPException(status_code=400, detail="Invalid data format")
+
+        request_id = str(uuid4())
+        for record in body["data"]:
+            record["request_id"] = request_id
+            record["type"] = "DownloadData"
+            db_service.save_result(record)
+
+        return {"message": "CSV data uploaded successfully", "request_id": request_id}
+    except Exception as e:
+        logging.exception(f"Error uploading CSV data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing CSV data: {str(e)}")  
+
+@app.get("/download-data")
+async def get_all_csv_data():
+    """
+    Endpoint to retrieve all CSV data from the database
+    """
+    try:
+        data = db_service.get_all_download_data()
+        if not data:
+            raise HTTPException(status_code=404, detail="No CSV data found")
+        return data
+    except Exception as e:
+        logging.exception(f"Error retrieving CSV data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching CSV data: {str(e)}")
+
+
+@app.get("/download-data/{request_id}")
+async def get_csv_data_by_id(request_id: str):
+    """
+    Endpoint to retrieve a specific CSV record by its ID
+    """
+    try:
+        record = db_service.get_download_record_by_request_id(request_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"No CSV record found for ID: {request_id}")
+        return record
+    except Exception as e:
+        logging.exception(f"Error retrieving CSV record: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching CSV record: {str(e)}")
 
 
 if __name__ == "__main__":

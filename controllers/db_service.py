@@ -1,7 +1,7 @@
 # db_service.py
 import pymongo
 import os
-from models import AnalysisResult
+from models import AnalysisResult, UploadedCsvData
 from typing import List, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -24,16 +24,31 @@ class DynamoDBService:
         self.dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
         self.table = self.dynamodb.Table('super-search-analysis_results')
 
-    def save_result(self, result: AnalysisResult) -> str:
-        """Save analysis result to DynamoDB and return its ID"""
-        result_dict = result.model_dump()
+    def save_result(self, result) -> str:
+        """
+        Save the given result to the appropriate DynamoDB table based on its type and return its ID.
+        """
+        if(result[type]=="AnalysisResult"):
+            """Save analysis result to DynamoDB and return its ID"""
+            table = self.dynamodb.Table('super-search-analysis_results')
+        elif(result[type]=="DownloadData"):
+            table = self.dynamodb.Table('super-search-download-results')
+        elif(result[type]=="AlternateTextSuggestion"):
+            table = self.dynamodb.Table('super-search-text-suggestion-results')
+        elif(result[type]=="AlternateFullSentenceSuggestion"):
+            table = self.dynamodb.Table('super-search-full-sentence-suggestion-results')
+
+        if isinstance(result,AnalysisResult):
+            result_dict = result.model_dump()
+        else:
+            result_dict = result
+
+        #result_dict = result.model_dump()
         result_dict['created_at'] = result.created_at.isoformat()
-
-
         result_dict = getRealDecimal(result_dict)
 
         # Insert document
-        insert_result = self.table.put_item(
+        insert_result = table.put_item(
             Item=result_dict
         )
         return result_dict['id']
@@ -69,3 +84,23 @@ class DynamoDBService:
             item = AnalysisResult(**items[0])
             return item
         return []
+    
+    def get_download_record_by_request_id(self, request_id: str):
+        """Retrieve analysis result by request ID"""
+        table = self.dynamodb.Table('super-search-download-results')
+        response = table.query(
+            IndexName='request_id-index',
+            KeyConditionExpression=Key('request_id').eq(request_id)
+        )
+        items = response.get('apiResult', [])
+        if items:
+            item = AnalysisResult(**items[0])
+            return item
+        return []
+    
+    def get_all_download_data(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Retrieve all download data with an optional limit"""
+        table = self.dynamodb.Table('super-search-download-results')
+        response = table.scan(Limit=limit)
+        items = response.get('Items', [])
+        return items
