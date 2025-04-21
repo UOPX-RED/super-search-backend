@@ -6,6 +6,7 @@ from typing import List, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
+import logging
 
 
 def getRealDecimal(obj):
@@ -69,3 +70,15 @@ class DynamoDBService:
             item = AnalysisResult(**items[0])
             return item
         return []
+
+    def get_result_by_id(self, id: str) -> Optional[AnalysisResult]:
+        """Retrieve analysis result by its ID"""
+        try:
+            response = self.table.get_item(Key={'id': id})
+            item = response.get('Item')
+            if item:
+                return AnalysisResult(**item)
+            return None
+        except Exception as e:
+            logging.error(f"Error getting result by ID {id}: {str(e)}")
+            return None
