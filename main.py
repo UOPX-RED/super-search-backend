@@ -322,7 +322,7 @@ async def get_course_details_query(courseCode: str):
             "Accept": "application/json"
         }
         
-        url = f"{COURSES_API_URL}/templates/curriculum?courseCode={courseCode}"
+        url = f"{COURSES_API_URL}/templates?$filter=code eq '{courseCode}'"
         print(f"URL: {url}")
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers)
