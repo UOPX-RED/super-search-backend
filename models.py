@@ -69,7 +69,7 @@ def analyze_suggestions(payload: SuggestionPayload, request_id: str, text_conten
             keywords_searched=keywords,
             alternative_suggestions=[AlternativeSuggestion(**section) for section in
                                  result_data.get("alternative_suggestions", [])],
-            metadata=payload.metadata,
+            metadata={**payload.metadata},
             message=result_data.get("message", "")
         )
         return result

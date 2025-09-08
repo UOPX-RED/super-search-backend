@@ -79,6 +79,7 @@ OPEN_PATHS = [
     "/conceptsearch",
     "/alternate-text-suggestion",
     "/full-sentence-suggestion",
+    "/batch",
 ]
 
 
@@ -420,6 +421,49 @@ async def get_programs_by_programId(programId: str):
     except httpx.RequestError as e:
         logging.error(f"Error making request to Programs MS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching programs: {str(e)}")
+
+
+@app.get("/results/batch")
+async def get_results_by_ids(request: Request):
+    """
+    Get multiple analysis results by their IDs
+    """
+    try:
+        # Get IDs from query params
+        ids = request.query_params.getall('ids') if hasattr(request.query_params, 'getall') else []
+        
+        # If getall doesn't exist, try to handle it differently
+        if not ids:
+            # Alternate approach if getall isn't available
+            ids = []
+            for key, value in request.query_params.items():
+                if key == 'ids':
+                    ids.append(value)
+        
+        logging.info(f"Batch retrieval request for {len(ids)} IDs")
+        
+        if not ids:
+            logging.warning("No IDs provided in batch retrieval request")
+            return []
+            
+        results = []
+        for id in ids:
+            try:
+                # Get each result by ID
+                result = db_service.get_result_by_id(id)
+                if result:
+                    logging.info(f"Found result for ID: {id}")
+                    results.append(result)
+                else:
+                    logging.warning(f"No result found for ID: {id}")
+            except Exception as e:
+                logging.error(f"Error fetching result {id}: {str(e)}")
+                
+        logging.info(f"Returning {len(results)} results from batch retrieval")
+        return results
+    except Exception as e:
+        logging.error(f"Error in batch retrieval: {str(e)}")
+        return []
 
 
 if __name__ == "__main__":
